@@ -1,7 +1,7 @@
 package org.camunda.test.sanbox;
 
 import org.apache.ibatis.logging.LogFactory;
-import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
@@ -44,14 +44,61 @@ public class InMemoryH2Test {
      * Just tests if the process definition is deployable.
      */
     @Test
-    @Deployment(resources = {"testing_variables_inSubprocess.bpmn","diagram_1.bpmn","process.bpmn"})
+    @Deployment(resources = {"testing_variables_inSubprocess.bpmn", "diagram_1.bpmn", "process.bpmn", "asynchron_test.bpmn"})
     public void testParsingAndDeployment() {
         // nothing is done here, as we just want to check for exceptions during deployment
     }
 
+
     @Test
-    @Deployment(resources = {"testing_variables_inSubprocess.bpmn","diagram_1.bpmn","process.bpmn"})
-    public void testHappyPath() {
+    @Deployment(resources = {"testing_variables_inSubprocess.bpmn", "diagram_1.bpmn", "process.bpmn", "asynchron_test.bpmn"})
+    public void testAsynchronousProcess() {
+        final String asynchronProcessKey = "asynchronTestProcessKey";
+        ProcessInstance piAsynch = processEngine().getRuntimeService().startProcessInstanceByKey(asynchronProcessKey);
+        List<Job> jobList = processEngine().getManagementService().createJobQuery().processInstanceId(piAsynch.getId()).list();
+        for (Job job : jobList) {
+            processEngine().getManagementService().executeJob(job.getId());
+        }
+
+        Map<String, Object> variables = processEngine().getRuntimeService().getVariables(piAsynch.getId());
+        List<Task> tasks = processEngine().getTaskService().createTaskQuery().processInstanceId(piAsynch.getId()).list();
+        System.out.println(tasks);
+    }
+
+    /**
+     * Checks diagram_1.bpmn
+     */
+    @Test
+    @Deployment(resources = {"testing_variables_inSubprocess.bpmn", "diagram_1.bpmn", "process.bpmn", "asynchron_test.bpmn"})
+    public void testPizzaOrderingProcess() {
+        ProcessInstance piPizzaBestellung = processEngine().getRuntimeService().startProcessInstanceByKey(PIZZA_BESTELLUNG_KEY);
+
+        Task task = processEngine().getTaskService().createTaskQuery().processInstanceId(piPizzaBestellung.getId()).singleResult();
+        Assert.assertEquals(null, task);
+
+        List<Task> taskListVerkauf = processEngine().getTaskService().createTaskQuery().processDefinitionKey(PIZZA_VERKAUF_KEY).list();
+        Assert.assertEquals(1, taskListVerkauf.size());
+
+        Task taskVerkauf1 = taskListVerkauf.get(0);
+        //PizzaOrder order = (PizzaOrder)processEngine().getRuntimeService().getVariable(taskVerkauf1.getProcessInstanceId(), "order");
+        Map<String, Object> variablesOfVerkauf = processEngine().getRuntimeService().getVariables(taskVerkauf1.getExecutionId());
+        Assert.assertEquals(1, variablesOfVerkauf.size());
+
+//        PizzaOrder pizzaOrder = (PizzaOrder) variablesOfVerkauf.get(0);
+//        Assert.assertNotNull(pizzaOrder);
+
+        processEngine().getTaskService().complete(taskVerkauf1.getId());
+        Task taskNachLieferung = processEngine().getTaskService().createTaskQuery().processInstanceId(piPizzaBestellung.getId()).singleResult();
+        Assert.assertEquals("Pizza essen", taskNachLieferung.getName());
+
+        Map<String, Object> variablesNachLieferung = processEngine().getRuntimeService().getVariables(taskNachLieferung.getProcessInstanceId());
+        Assert.assertEquals(4, variablesNachLieferung.size());
+    }
+
+
+    @Test
+    @Deployment(resources = {"testing_variables_inSubprocess.bpmn", "diagram_1.bpmn", "process.bpmn", "asynchron_test.bpmn"})
+    public void testHappyPath() throws InterruptedException {
         final String parentProcessKey = "ParentProcessTestVariablesKey";
         final String subProcessKey = "SubProcessTestVariablesKey";
         boolean shouldThrowError = true; // change to test behavor
@@ -93,35 +140,6 @@ public class InMemoryH2Test {
         } else {
             Assert.assertTrue(taskList.get(0).getName().equals("Task on Success"));
         }
-    }
-
-    /**
-     * Checks diagram_1.bpmn
-     */
-    private void checkPizzaOrderingProcess() {
-        ProcessEngine processEngine = processEngine();
-        ProcessInstance piPizzaBestellung = processEngine().getRuntimeService().startProcessInstanceByKey(PIZZA_BESTELLUNG_KEY);
-
-        Task task = processEngine().getTaskService().createTaskQuery().processInstanceId(piPizzaBestellung.getId()).singleResult();
-        Assert.assertEquals(null, task);
-
-        List<Task> taskListVerkauf = processEngine().getTaskService().createTaskQuery().processDefinitionKey(PIZZA_VERKAUF_KEY).list();
-        Assert.assertEquals(1, taskListVerkauf.size());
-
-        Task taskVerkauf1 = taskListVerkauf.get(0);
-        //PizzaOrder order = (PizzaOrder)processEngine().getRuntimeService().getVariable(taskVerkauf1.getProcessInstanceId(), "order");
-        Map<String, Object> variablesOfVerkauf = processEngine().getRuntimeService().getVariables(taskVerkauf1.getExecutionId());
-        Assert.assertEquals(1, variablesOfVerkauf.size());
-
-//        PizzaOrder pizzaOrder = (PizzaOrder) variablesOfVerkauf.get(0);
-//        Assert.assertNotNull(pizzaOrder);
-
-        processEngine().getTaskService().complete(taskVerkauf1.getId());
-        Task taskNachLieferung = processEngine().getTaskService().createTaskQuery().processInstanceId(piPizzaBestellung.getId()).singleResult();
-        Assert.assertEquals("Pizza essen", taskNachLieferung.getName());
-
-        Map<String, Object> variablesNachLieferung = processEngine().getRuntimeService().getVariables(taskNachLieferung.getProcessInstanceId());
-        Assert.assertEquals(4, variablesNachLieferung.size());
     }
 
 }

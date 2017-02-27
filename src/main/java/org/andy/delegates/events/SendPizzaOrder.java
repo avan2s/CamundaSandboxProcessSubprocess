@@ -31,7 +31,7 @@ public class SendPizzaOrder implements JavaDelegate {
         String businessKey = delegateExecution.getProcessBusinessKey();
 
         // Set variable in order to Compare it later with the delivered pizza
-        delegateExecution.setVariable("Bestellte Pizza", pizzaOrder.getPizzaname());
+        // delegateExecution.setVariable("Bestellte Pizza", pizzaOrder.getPizzaname());
         delegateExecution.setVariable("order", pizzaOrderSerialized);
         Map<String, Object> variables = runtimeService.getVariables(delegateExecution.getProcessInstanceId());
         PizzaOrder order = (PizzaOrder) variables.get("order");

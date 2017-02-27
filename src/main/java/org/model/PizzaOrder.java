@@ -9,6 +9,9 @@ public class PizzaOrder implements Serializable {
     private String pizzaname;
     private int numberOfPizzas;
 
+    public PizzaOrder() {
+    }
+
     public PizzaOrder(String pizzaname, int numberOfPizzas) {
         this.pizzaname = pizzaname;
         this.numberOfPizzas = numberOfPizzas;
